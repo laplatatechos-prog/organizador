@@ -337,12 +337,30 @@ function elegirVoz(){
   if(!("speechSynthesis" in window)) return null;
   var vs=speechSynthesis.getVoices().filter(function(v){return /^es/i.test(v.lang)});
   var mujer=/paulina|m[oó]nica|helena|sabina|laura|elvira|dalia|camila|paloma|elena|luc[ií]a|sof[ií]a|isabela|valentina|female|mujer/i;
-  var orden=function(v){return (mujer.test(v.name)?0:4)+(/AR|419|US|MX/.test(v.lang)?0:1)+(/google|natural|online/i.test(v.name)?0:2)};
+  var orden=function(v){return (/natural|online|neural|google|network/i.test(v.name)?0:8)+(mujer.test(v.name)?0:4)+(/AR|419|US|MX/.test(v.lang)?0:1)};
   vs.sort(function(a,b){return orden(a)-orden(b)});
   return vs[0]||null;
 }
 if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=function(){voz=elegirVoz()};voz=elegirVoz()}
+// Primero intenta la voz humana del servidor (ElevenLabs); si no está, usa la del celular.
+var FN_VOZ="https://dowtczgckcuvxwpgqcpq.supabase.co/functions/v1/org-voz", audioActual=null, cacheVoz={}, vozServidor=true;
 function hablar(txt, alTerminar){
+  if(audioActual){audioActual.pause();audioActual=null}
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  if(!vozServidor) return hablarCelu(txt, alTerminar);
+  var av=document.getElementById("avatar"); if(av) av.classList.add("habla");
+  var limpio=txt.replace(/[«»✓]/g,"");
+  var p = cacheVoz[limpio] ? Promise.resolve(cacheVoz[limpio]) :
+    fetch(FN_VOZ,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({texto:limpio})})
+      .then(function(r){ if(r.status==503) vozServidor=false; if(!r.ok) throw 0; return r.blob() })
+      .then(function(b){ var u=URL.createObjectURL(b); cacheVoz[limpio]=u; return u });
+  p.then(function(u){
+    audioActual=new Audio(u);
+    audioActual.onended=audioActual.onerror=function(){var a=document.getElementById("avatar"); if(a) a.classList.remove("habla"); audioActual=null; if(alTerminar) alTerminar()};
+    return audioActual.play();
+  }).catch(function(){ hablarCelu(txt, alTerminar) });
+}
+function hablarCelu(txt, alTerminar){
   if(!("speechSynthesis" in window)){aviso("Este celular no tiene voz disponible");return}
   speechSynthesis.cancel();
   var u=new SpeechSynthesisUtterance(txt.replace(/[«»✓]/g,"").replace(/\$ ?([\d.]+)/g,"$1 pesos"));
