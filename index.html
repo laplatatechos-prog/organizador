@@ -304,9 +304,20 @@ function detalle(id){
   if(it.tipo=="gasto"){d("Monto",plata(it.monto));d("Categoría",esc(it.categoria))}
   d("Prioridad",it.prioridad=="Urgente"?"Urgente":"");
   d("Notas",esc(it.notas));
-  d("En calendario",it.fecha&&it.tipo!="gasto"?(it.gcal_id?"Sí":"Se agrega en un rato"):"");
+  var cal = "";
+  if(it.fecha && it.tipo!="gasto"){
+    var f0=it.fecha.replace(/-/g,""), fechas;
+    if(it.hora){var hh=hhmm(it.hora).replace(":",""), h1=("0"+((parseInt(hh.slice(0,2),10)+1)%24)).slice(-2)+hh.slice(2); fechas=f0+"T"+hh+"00/"+f0+"T"+h1+"00";}
+    else fechas=f0+"/"+sumar(it.fecha,1).replace(/-/g,"");
+    var tit=it.titulo+(it.cliente?" – "+it.cliente:"")+" ("+it.quien+")";
+    var url="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(tit)+"&dates="+fechas+"&ctz=America/Argentina/Buenos_Aires&src="+encodeURIComponent("family14446676083126153301@group.calendar.google.com")+
+      (it.direccion?"&location="+encodeURIComponent(it.direccion):"")+"&details="+encodeURIComponent("Cargado desde el Organizador"+(it.telefono?"\nTel: "+it.telefono:"")+(it.notas?"\n"+it.notas:""));
+    cal = it.gcal_id ? "" : '<a class="btn sec" style="text-align:center;text-decoration:none" target="_blank" href="'+url+'">Pasar al calendario Familia</a>';
+  }
+  d("En calendario",it.fecha&&it.tipo!="gasto"?(it.gcal_id?"Sí":"Todavía no"):"");
   abrirHoja('<h2>'+esc(it.titulo)+'</h2>'+f.join("")+
     (it.tipo!="gasto"?'<button class="btn" onclick="marcar(\''+id+'\');cerrarHoja()">'+(it.hecho?"Volver a pendiente":"Marcar como hecho")+'</button>':"")+
+    cal+
     '<button class="btn sec" onclick="abrirForm(\''+id+'\')">Editar</button>'+
     '<button class="btn peligro" id="btn-borrar" onclick="borrar(\''+id+'\')">Borrar</button>');
 }
