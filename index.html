@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f2a3a">
+<title>Organizador</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-192.png">
+<style>
+  :root { --fondo:#f4f5f7; --barra:#1f2a3a; --txt:#1d2430; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; font-family:"Segoe UI",Roboto,Arial,sans-serif; background:var(--fondo); color:var(--txt); }
+  body { display:flex; flex-direction:column; }
+
+  /* Pantalla "¿Quién entra?" */
+  #quien { position:fixed; inset:0; background:var(--barra); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; z-index:5; padding:16px; }
+  #quien h2 { color:#fff; font-weight:500; font-size:26px; margin:0; }
+  #quien .opc { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+  #quien button { border:0; border-radius:16px; width:200px; padding:26px 10px; font-size:20px; font-weight:600; color:#fff; cursor:pointer; }
+  #quien button.raf { background:#3b82f6; }
+  #quien button.lau { background:#d9468f; }
+  #quien button:hover { filter:brightness(1.1); }
+  #quien.oculto { display:none; }
+
+  header { display:flex; align-items:center; gap:6px; padding:8px 12px; background:var(--barra); flex-wrap:wrap; }
+  header h1 { font-size:17px; color:#fff; margin:0 10px 0 4px; font-weight:600; }
+  button.tab { border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; color:#fff; background:rgba(255,255,255,.1); }
+  button.tab:hover { background:rgba(255,255,255,.2); }
+  button.tab.on { background:var(--c); font-weight:600; }
+  .esp { flex:1; }
+  #yo { color:#e2e8f0; font-size:14px; }
+  #yo b { color:#fff; }
+  .chico { border:0; background:none; color:#93c5fd; cursor:pointer; font-size:13px; text-decoration:underline; padding:4px; }
+  #filtro { display:none; align-items:center; gap:4px; background:rgba(255,255,255,.08); border-radius:8px; padding:3px; }
+  #filtro.ver { display:flex; }
+  #filtro button { border:0; border-radius:6px; padding:5px 10px; font-size:13px; cursor:pointer; background:none; color:#cbd5e1; }
+  #filtro button.on { background:#fff; color:#1f2a3a; font-weight:600; }
+  a.afuera { color:#cbd5e1; font-size:13px; text-decoration:none; padding:6px 8px; }
+  a.afuera:hover { color:#fff; text-decoration:underline; }
+  main { flex:1; position:relative; }
+  iframe { position:absolute; inset:0; width:100%; height:100%; border:0; background:#fff; display:none; }
+  iframe.on { display:block; }
+</style>
+</head>
+<body>
+
+<div id="quien">
+  <h2>¿Quién entra?</h2>
+  <div class="opc">
+    <button class="raf" data-p="Rafael">Ángel Rafael</button>
+    <button class="lau" data-p="Laura">Laura Soledad</button>
+  </div>
+</div>
+
+<header>
+  <h1>Organizador</h1>
+  <button class="tab" data-v="cal"  style="--c:#6366f1">Calendario</button>
+  <button class="tab" data-v="trab" style="--c:#3b82f6">Trabajos</button>
+  <button class="tab" data-v="casa" style="--c:#22a05a">Casa</button>
+  <button class="tab" data-v="gas"  style="--c:#e08a1e">Gastos</button>
+  <button class="tab" data-v="res"  style="--c:#64748b">Resumen</button>
+  <span id="filtro">
+    <button data-f="mio">Lo mío</button>
+    <button data-f="todo">Todo</button>
+  </span>
+  <span class="esp"></span>
+  <span id="yo"></span>
+  <button class="chico" id="cambiar">cambiar</button>
+  <a class="afuera" id="abrir" href="#" target="_blank">Abrir aparte ↗</a>
+</header>
+<main id="main"></main>
+
+<script>
+  var HOJA = "https://docs.google.com/spreadsheets/d/1O-qyj0aSdd60-JN9rWkGPQcSBVe3JVyoDNB8LVTci6Q/edit";
+  var CAL = "https://calendar.google.com/calendar/embed?ctz=America%2FArgentina%2FBuenos_Aires&mode=WEEK&wkst=2&hl=es"
+          + "&src=" + encodeURIComponent("laplatatechos@gmail.com")
+          + "&src=" + encodeURIComponent("family14446676083126153301@group.calendar.google.com");
+  var NOMBRE = { Rafael: "Ángel Rafael", Laura: "Laura Soledad" };
+  // Vistas filtradas creadas en la hoja (Trabajos gid 0, Casa gid 1)
+  var FILTROS = {
+    trab: { gid: 0, Rafael: 1860234421, Laura: 1898274303 },
+    casa: { gid: 1, Rafael: 1117462697, Laura: 378311370 }
+  };
+
+  function guardar(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function leer(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  var persona = leer("org-persona");
+  var vista = leer("org-vista") || "cal";
+  var filtro = leer("org-filtro") || "mio";
+  var main = document.getElementById("main"), frames = {};
+
+  function url(v, embebido) {
+    var m = embebido ? "?rm=minimal" : "";
+    if (v === "cal") return embebido ? CAL : "https://calendar.google.com/calendar/u/0/r/week";
+    if (v === "gas") return HOJA + m + "#gid=2";
+    if (v === "res") return HOJA + m + "#gid=3";
+    var f = FILTROS[v];
+    if (filtro === "mio" && persona) return HOJA + m + "#gid=" + f.gid + "&fvid=" + f[persona];
+    return HOJA + m + "#gid=" + f.gid;
+  }
+
+  function ver(v) {
+    vista = v; guardar("org-vista", v);
+    var clave = v + (FILTROS[v] ? "-" + filtro + "-" + persona : "");
+    if (!frames[clave]) { var fr = document.createElement("iframe"); fr.src = url(v, true); main.appendChild(fr); frames[clave] = fr; }
+    for (var k in frames) frames[k].classList.toggle("on", k === clave);
+    document.querySelectorAll("button.tab").forEach(function (b) { b.classList.toggle("on", b.dataset.v === v); });
+    document.getElementById("filtro").classList.toggle("ver", !!FILTROS[v]);
+    document.querySelectorAll("#filtro button").forEach(function (b) { b.classList.toggle("on", b.dataset.f === filtro); });
+    document.getElementById("abrir").href = url(v, false);
+  }
+
+  function entrar(p) {
+    persona = p; guardar("org-persona", p);
+    document.getElementById("yo").innerHTML = "Hola, <b>" + NOMBRE[p] + "</b>";
+    document.getElementById("quien").classList.add("oculto");
+    ver(vista);
+  }
+
+  document.querySelectorAll("#quien button").forEach(function (b) { b.onclick = function () { entrar(b.dataset.p); }; });
+  document.getElementById("cambiar").onclick = function () { document.getElementById("quien").classList.remove("oculto"); };
+  document.querySelectorAll("button.tab").forEach(function (b) { b.onclick = function () { ver(b.dataset.v); }; });
+  document.querySelectorAll("#filtro button").forEach(function (b) { b.onclick = function () { filtro = b.dataset.f; guardar("org-filtro", filtro); ver(vista); }; });
+
+  if (persona && NOMBRE[persona]) entrar(persona);
+</script>
+</body>
+</html>
